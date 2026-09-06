@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eaf5ff">
+<link rel="manifest" href="manifest.webmanifest">
+<title>ClinicRx Appointments</title>
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--text:#17212b;--muted:#718096;--line:#e4e9ef;--accent:#2f8fd8;--accentbg:#e5f3ff;--danger:#c0392b;--ok:#278a5b;--shadow:0 6px 24px rgba(20,40,60,.06)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer;border:0}.app{max-width:900px;margin:auto;padding:18px 16px 90px}.header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.logo{width:46px;height:46px;border-radius:15px;background:var(--accentbg);display:grid;place-items:center;font-size:22px}.title{font-weight:800;font-size:21px}.sub{color:var(--muted);font-size:13px}.iconbtn{width:44px;height:44px;border-radius:14px;background:var(--card);border:1px solid var(--line);color:var(--text)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}h1,h2,h3{margin:0}.date{color:var(--muted);font-size:14px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}.stat{background:var(--bg);border-radius:15px;padding:12px;text-align:center}.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}
+.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}.primary{background:var(--accentbg);color:var(--text);padding:11px 15px;border-radius:14px;font-weight:700}.secondary{background:var(--bg);color:var(--text);border:1px solid var(--line);padding:10px 13px;border-radius:13px}.danger{color:var(--danger)}
+.appt{border:1px solid var(--line);background:var(--bg);border-radius:18px;padding:14px;margin:9px 0}.apptrow{display:flex;gap:12px}.time{min-width:64px;font-weight:800}.patient{font-weight:800;font-size:17px}.meta{font-size:13px;color:var(--muted);margin-top:2px}.notes{font-size:13px;margin-top:6px}.badge{display:inline-block;border-radius:999px;padding:4px 8px;font-size:11px;margin-top:8px}.waiting{background:#fff3cd;color:#856404}.completed{background:#dff5e8;color:#24764d}.cancelled{background:#fce4e4;color:#a33}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.actions button{padding:8px 10px;border-radius:11px;background:var(--card);border:1px solid var(--line);font-size:13px}
+.field{margin:12px 0}.field label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:13px;background:var(--bg);color:var(--text);outline:none}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hidden{display:none}.search{margin-bottom:12px}.empty{text-align:center;color:var(--muted);padding:28px 10px}.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:8px max(10px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));z-index:5}.navin{max-width:650px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nav button{background:transparent;color:var(--muted);padding:8px 4px;border-radius:13px;font-size:12px}.nav button.active{background:var(--accentbg);color:var(--text);font-weight:800}.modal{position:fixed;inset:0;background:rgba(15,25,35,.38);display:grid;place-items:end center;z-index:10}.sheet{background:var(--card);width:min(900px,100%);max-height:92vh;overflow:auto;border-radius:25px 25px 0 0;padding:20px}.toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 14px;border-radius:12px;z-index:20;font-size:13px}
+.dark{--bg:#11161c;--card:#1a2129;--text:#f2f6fa;--muted:#9aa7b5;--line:#303a45;--accentbg:#173a55;--shadow:none}.dark .nav{background:rgba(26,33,41,.95)}
+@media(min-width:700px){.app{padding-top:28px}.nav{position:static;border:0;background:transparent;padding:0;margin-top:18px}.navin{border:1px solid var(--line);background:var(--card);border-radius:18px;padding:6px}.modal{place-items:center}.sheet{border-radius:24px;max-width:650px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const DB='clinicrx_appointments', STORE='appointments';
+let db, state={view:'today', editing:null};
+const today=()=>new Date().toISOString().slice(0,10);
+
+
+function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});r.onsuccess=()=>{db=r.result;res()};r.onerror=()=>rej(r.error)})}
+function all(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function put(x){return new Promise((res,rej)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).put(x);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function del(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]) )}
+function fmt(d){return new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+async function render(){
+ let data=await all(); data.sort((a,b)=>(a.date+(a.time||'99:99')).localeCompare(b.date+(b.time||'99:99')));
+ let content=`<div class="app"><header class="header"><div class="brand"><div class="logo">🩺</div><div><div class="title">ClinicRx Appointments</div><div class="sub">Medical Appointment Organiser</div></div></div><button class="iconbtn" onclick="toggleDark()" aria-label="Toggle dark mode">☾</button></header>`;
+ if(state.view==='today') content+=todayView(data); else if(state.view==='upcoming') content+=upcomingView(data); else if(state.view==='patients') content+=patientsView(data); else content+=settingsView();
+ content+=`</div><nav class="nav"><div class="navin">${[['today','Today','▣'],['upcoming','Upcoming','◷'],['add','+ Add','＋'],['patients','Patients','♙']].map(x=>`<button class="${state.view===x[0]?'active':''}" onclick="nav('${x[0]}')">${x[2]}<br>${x[1]}</button>`).join('')}</div></nav>`;
+ document.getElementById('app').innerHTML=content;
+}
+function todayView(data){
+ let t=data.filter(a=>a.date===today()), w=t.filter(a=>a.status==='waiting').length,c=t.filter(a=>a.status==='completed').length;
+ return `<section class="card"><div class="sectionhead"><div><div class="date">${fmt(today())}</div><h1 style="margin-top:4px">Today's Clinic</h1></div><button class="secondary" onclick="shareList(today())">Share</button></div><div class="stats"><div class="stat"><b>${t.length}</b><span>Total</span></div><div class="stat"><b>${w}</b><span>Waiting</span></div><div class="stat"><b>${c}</b><span>Completed</span></div></div></section><section class="card"><div class="sectionhead"><h2>Appointments</h2><button class="primary" onclick="openForm()">+ Add</button></div>${t.length?t.map(card).join(''):'<div class="empty">No appointments today.<br>Add the first patient.</div>'}</section>`;
+}
+function upcomingView(data){
+ let f=data.filter(a=>a.date>today()), groups={}; f.forEach(a=>(groups[a.date]??=[]).push(a));
+ let html=`<section class="card"><div class="sectionhead"><h1>Upcoming</h1><div class="actions"><button class="secondary" onclick="shareList()">Share</button><button class="primary" onclick="openForm()">+ Add</button></div></div>`;
+ html+=f.length?Object.keys(groups).sort().map(d=>`<div class="date" style="margin:15px 2px 6px">${fmt(d)}</div>${groups[d].map(card).join('')}`).join(''):'<div class="empty">No upcoming appointments.</div>';
+ return html+'</section>';
+}
+function card(a){let label=a.status[0].toUpperCase()+a.status.slice(1);return `<div class="appt"><div class="apptrow"><div class="time">${a.time?esc(a.time):'<span style="font-weight:500;color:var(--muted)">No time</span>'}${a.queue?` <span style="font-size:11px;color:var(--muted)">#${esc(a.queue)}</span>`:''}</div><div style="flex:1;min-width:0"><div class="patient">${esc(a.name)}</div><div class="meta">${a.age?esc(a.age)+' yrs • ':''}${esc(a.type)} • ${esc(a.duration)}</div>${a.phone?`<div class="meta">☎ ${esc(a.phone)}</div>`:''}${a.notes?`<div class="notes">${esc(a.notes)}</div>`:''}<span class="badge ${esc(a.status)}">${label}</span><div class="actions"><button onclick="cycle(${a.id})">${a.status==='waiting'?'✓ Complete':a.status==='completed'?'Cancel':'↩ Waiting'}</button><button onclick="edit(${a.id})">Edit</button><button type="button" class="danger deleteBtn" data-id="${Number(a.id)}" onclick="removeAppt(this.dataset.id);return false">Delete</button></div></div></div></div>`}
+function patientsView(data){
+ let map={};data.forEach(a=>{let k=a.name.trim().toLowerCase();if(!map[k])map[k]={name:a.name,age:a.age,phone:a.phone,count:0,last:a.date};map[k].count++;if(a.date>map[k].last)map[k].last=a.date});
+ let ps=Object.values(map).sort((a,b)=>a.name.localeCompare(b.name));
+ return `<section class="card"><div class="sectionhead"><h1>Patients</h1><div class="actions"><button class="secondary" onclick="exportPatients()">Word/PDF</button><button class="primary" onclick="openForm()">+ Add</button></div></div><div class="field search"><input id="patientSearch" placeholder="Search patient..." oninput="filterPatients(this.value)"></div><div id="patientsList">${patientCards(ps)}</div></section>`;
+}
+function patientCards(ps){return ps.length?ps.map(p=>`<div class="appt patientRow"><div class="patient">${esc(p.name)}</div><div class="meta">${p.age?esc(p.age)+' yrs • ':''}${p.phone?esc(p.phone):'No phone'} • ${p.count} appointment${p.count>1?'s':''}</div><div class="meta">Last: ${esc(p.last)}</div></div>`).join(''):'<div class="empty">No patients yet.</div>'}
+async function filterPatients(q){let data=await all(),map={};data.forEach(a=>{let k=a.name.trim().toLowerCase();if(!map[k])map[k]={name:a.name,age:a.age,phone:a.phone,count:0,last:a.date};map[k].count++;if(a.date>map[k].last)map[k].last=a.date});let ps=Object.values(map).filter(p=>p.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name));document.getElementById('patientsList').innerHTML=patientCards(ps)}
+function settingsView(){return `<section class="card"><h1>Settings</h1><div class="field"><label>Doctor / Clinic name</label><input id="clinic" placeholder="My Clinic"></div><div class="field"><label>Default duration</label><select id="defaultDuration"><option>15 min</option><option selected>30 min</option><option>45 min</option><option>60 min</option></select></div><button class="primary" onclick="saveSettings()">Save Settings</button></section>`}
+function nav(v){if(v==='add'){openForm();return}state.view=v;render()}
+async function openForm(id=null){
+ let a=id? (await all()).find(x=>x.id===id):null; state.editing=a?.id||null;
+ let x=a||{name:'',phone:'',age:'',date:today(),time:'09:00',type:'Follow-up',duration:'30 min',notes:'',status:'waiting'};
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" id="modal"><div class="sheet"><div class="sectionhead"><div><h2>${a?'Edit':'New'} Appointment</h2><div class="sub">Patient and appointment details</div></div><div class="actions"><button class="primary" type="submit" form="form">Save Appointment</button><button class="iconbtn" type="button" onclick="closeModal()">×</button></div></div><form id="form" onsubmit="saveForm(event)"><div class="field"><label>Patient Name *</label><input id="name" required value="${esc(x.name)}"></div><div class="grid2"><div class="field"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="phone" type="tel" value="${esc(x.phone)}"></div><div class="field"><label>Age <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="age" type="number" min="0" max="120" value="${esc(x.age)}"></div></div><div class="grid2"><div class="field"><label>Date *</label><input id="date" type="date" required value="${esc(x.date)}"></div><div class="field"><label>Time <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="time" type="time" value="${esc(x.time||'')}"></div></div><div class="field"><label>Queue Number <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="queue" type="number" min="1" placeholder="Optional" value="${esc(x.queue||'')}"></div><div class="grid2"><div class="field"><label>Visit Type</label><select id="type">${['New Consultation','Follow-up','Procedure','Report Review','Teleconsultation'].map(v=>`<option ${x.type===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Duration</label><select id="duration">${['15 min','30 min','45 min','60 min'].map(v=>`<option ${x.duration===v?'selected':''}>${v}</option>`).join('')}</select></div></div><div class="field"><label>Reason / Notes</label><textarea id="notes" rows="3">${esc(x.notes)}</textarea></div><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancel</button></div></form></div></div>`);document.getElementById('name').focus()
+}
+function closeModal(){document.getElementById('modal')?.remove()}
+async function saveForm(e){
+ e.preventDefault();
+ const form=e.currentTarget;
+ const get=id=>form.querySelector('#'+id);
+ const nameVal=get('name').value.trim();
+ const dateVal=get('date').value;
+ const timeVal=get('time').value;
+ if(!nameVal||!dateVal){toast('Please enter patient name and date');return}
+ const a={
+   name:nameVal,
+   phone:get('phone').value.trim(),
+   age:get('age').value.trim(),
+   queue:get('queue').value.trim(),
+   date:dateVal,
+   time:timeVal,
+   type:get('type').value,
+   duration:get('duration').value,
+   notes:get('notes').value.trim(),
+   status:'waiting'
+ };
+ if(state.editing){
+   const old=(await all()).find(x=>x.id===state.editing);
+   a.id=state.editing;
+   if(old)a.status=old.status;
+ }
+ try{await put(a);closeModal();toast('Appointment saved');await render()}
+ catch(err){console.error(err);toast('Could not save appointment')}
+}
+async function edit(id){openForm(id)}
+async function cycle(id){let a=(await all()).find(x=>x.id===id);a.status=a.status==='waiting'?'completed':a.status==='completed'?'cancelled':'waiting';await put(a);render()}
+async function removeAppt(id){
+ const n=parseInt(id,10);
+ if(!Number.isFinite(n)){toast('Delete error');return false}
+ try{
+  await new Promise((resolve,reject)=>{
+   const tx=db.transaction(STORE,'readwrite');
+   const req=tx.objectStore(STORE).delete(n);
+   req.onsuccess=()=>resolve();
+   req.onerror=()=>reject(req.error||new Error('Delete failed'));
+   tx.onabort=()=>reject(tx.error||new Error('Delete aborted'));
+  });
+  toast('Appointment deleted');
+  await render();
+ }catch(err){console.error('DELETE',err);toast('Delete failed');}
+ return false;
+}
+function toast(s){let e=document.createElement('div');e.className='toast';e.textContent=s;document.body.appendChild(e);setTimeout(()=>e.remove(),1800)}
+
+function exportRows(rows,title){
+ const escHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const body=rows.map((a,i)=>`<tr><td>${i+1}</td><td>${escHtml(a.date)}</td><td>${escHtml(a.time||'')}</td><td>${escHtml(a.queue||'')}</td><td>${escHtml(a.name)}</td><td>${escHtml(a.age||'')}</td><td>${escHtml(a.phone||'')}</td><td>${escHtml(a.type||'')}</td><td>${escHtml(a.status||'')}</td><td>${escHtml(a.notes||'')}</td></tr>`).join('');
+ return `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#17212b}h1{font-size:22px}p{color:#667085}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccd3da;padding:6px;text-align:left}th{background:#eef3f7}@media print{body{padding:8px}@page{size:auto;margin:12mm}}</style></head><body><h1>${escHtml(title)}</h1><p>ClinicRx Appointments • Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>#</th><th>Date</th><th>Time</th><th>Queue</th><th>Patient</th><th>Age</th><th>Phone</th><th>Visit Type</th><th>Status</th><th>Notes</th></tr></thead><tbody>${body}</tbody></table></body></html>`;
+}
+function printDocument(htmlDoc){
+ const w=window.open('','_blank');
+ if(!w){toast('Please allow pop-ups for PDF export');return}
+ w.document.open();w.document.write(htmlDoc);w.document.close();
+ setTimeout(()=>{w.focus();w.print()},350);
+}
+async function shareList(dateOnly){
+ const data=await all();
+ let rows=dateOnly?data.filter(a=>a.date===dateOnly):data.filter(a=>a.date>=today());
+ rows.sort((a,b)=>(a.date+(a.time||'99:99')).localeCompare(b.date+(b.time||'99:99')));
+ if(!rows.length){toast('No appointments to share');return}
+ const title=dateOnly?`ClinicRx Appointments — ${dateOnly}`:'ClinicRx Upcoming Appointments';
+ const htmlDoc=exportRows(rows,title);
+ if(navigator.share){
+   try{
+     const file=new File([htmlDoc],`ClinicRx_${dateOnly||'Upcoming'}.html`,{type:'text/html'});
+     if(navigator.canShare && navigator.canShare({files:[file]})){
+       await navigator.share({title,text:'Appointment list',files:[file]});return;
+     }
+   }catch(err){if(err.name==='AbortError')return}
+ }
+ printDocument(htmlDoc);
+}
+async function exportPatients(){
+ const data=await all(),map={};
+ data.forEach(a=>{let k=a.name.trim().toLowerCase();if(!map[k])map[k]={name:a.name,age:a.age,phone:a.phone,count:0,last:a.date};map[k].count++;if(a.date>map[k].last)map[k].last=a.date});
+ const rows=Object.values(map).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({date:p.last,time:'',queue:'',name:p.name,age:p.age,phone:p.phone,type:p.count+' appointment(s)',status:'',notes:''}));
+ if(!rows.length){toast('No patients to export');return}
+ printDocument(exportRows(rows,'ClinicRx Patient List'));
+}
+function toggleDark(){document.body.classList.toggle('dark');localStorage.setItem('dark',document.body.classList.contains('dark'))}
+function saveSettings(){localStorage.setItem('clinicName',document.getElementById('clinic').value);localStorage.setItem('duration',document.getElementById('defaultDuration').value);toast('Settings saved')}
+
+(async()=>{if(localStorage.getItem('dark')==='true')document.body.classList.add('dark');await openDB();if(localStorage.getItem('clinicrx_demo_cleared_v2')!=='1'){let existing=await all();for(const a of existing){if(['Raj Kumar','Anita Sharma','Vikram Singh','Meena Gupta'].includes(a.name))await del(a.id)}localStorage.setItem('clinicrx_demo_cleared_v2','1')} render()})();
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});</script></body>
+</html>
